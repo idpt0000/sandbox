@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SimilarWeb API Fetch Tool</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --panel: #ffffff; --border: #e0e0e4; --text: #1a1a1e;
+    --muted: #6b6b76; --accent: #3457d5; --accent-fg: #ffffff;
+    --ok: #1a8a4a; --warn: #b5760a; --err: #c43b3b; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15161a; --panel: #1d1e23; --border: #30313a; --text: #e8e8ec;
+      --muted: #94949e; --accent: #6b86f0; --accent-fg: #0c0c10;
+      --ok: #4fce85; --warn: #e0a940; --err: #e8716a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15161a; --panel: #1d1e23; --border: #30313a; --text: #e8e8ec;
+    --muted: #94949e; --accent: #6b86f0; --accent-fg: #0c0c10;
+    --ok: #4fce85; --warn: #e0a940; --err: #e8716a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0; padding: 24px; max-width: 980px; margin-inline: auto;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; margin-bottom: 16px;
+  }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  input[type=text], input[type=password], input[type=number], textarea {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 9px; font-size: 13px; font-family: var(--mono);
+  }
+  textarea { font-family: var(--mono); resize: vertical; }
+  input[type=file] { font-size: 12px; color: var(--text); }
+  button {
+    background: var(--accent); color: var(--accent-fg); border: none; border-radius: 6px;
+    padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button + button { margin-left: 8px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+  .stat { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .stat .num { font-size: 20px; font-weight: 700; font-family: var(--mono); }
+  .stat .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+  .stat.ok .num { color: var(--ok); }
+  .stat.warn .num { color: var(--warn); }
+  .stat.err .num { color: var(--err); }
+  #log {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font-family: var(--mono); font-size: 12px; height: 220px;
+    overflow-y: auto; white-space: pre-wrap; line-height: 1.45;
+  }
+  .log-err { color: var(--err); }
+  .log-ok { color: var(--ok); }
+  .log-warn { color: var(--warn); }
+  .muted { color: var(--muted); font-size: 12px; }
+  .pill {
+    display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--muted); margin-left: 6px;
+  }
+  progress { width: 100%; height: 8px; accent-color: var(--accent); margin-top: 10px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<h1>SimilarWeb API Fetch Tool</h1>
+<div class="subtitle">Self-contained browser tool — traffic + geography fetch, IndexedDB cache, CSV export. No server, no backend dependency.</div>
+
+<div class="panel">
+  <h2>Config</h2>
+  <div class="row">
+    <div class="field">
+      <label for="apiKey">API key (session only, never saved to disk)</label>
+      <input type="password" id="apiKey" placeholder="SW_API_KEY" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="startDate">Start date (YYYY-MM)</label>
+      <input type="text" id="startDate" value="2025-05">
+    </div>
+    <div class="field">
+      <label for="endDate">End date (YYYY-MM)</label>
+      <input type="text" id="endDate" value="2026-06">
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label for="geoLimit">Geo limit (top-N countries)</label>
+      <input type="number" id="geoLimit" value="3" min="1" max="10">
+    </div>
+    <div class="field">
+      <label for="delay">Delay between calls (s)</label>
+      <input type="number" id="delay" value="1.1" step="0.1" min="0">
+    </div>
+    <div class="field">
+      <label for="creditCheckEvery">Credit check every N domains</label>
+      <input type="number" id="creditCheckEvery" value="50" min="1">
+    </div>
+    <div class="field">
+      <label for="creditsPerDomain">Credits/domain safety margin</label>
+      <input type="number" id="creditsPerDomain" value="20" min="1">
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="secondary" id="btnCheckCredits">Check remaining credits</button>
+    <span id="creditStatus" class="muted"></span>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Cache snapshot (IndexedDB)</h2>
+  <div class="row">
+    <div class="field">
+      <label for="snapshotLoad">Load snapshot JSON (migration or resume)</label>
+      <input type="file" id="snapshotLoad" accept=".json">
+      <span id="snapshotLoadStatus" class="muted"></span>
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <div class="btn-row">
+        <button class="secondary" id="btnSaveSnapshot">Save snapshot</button>
+        <button class="secondary" id="btnClearCache">Clear cache</button>
+      </div>
+    </div>
+  </div>
+  <div class="muted" id="cacheCount">Cache: 0 records</div>
+</div>
+
+<div class="panel">
+  <h2>Domains</h2>
+  <div class="row">
+    <div class="field" style="flex: 2;">
+      <label for="domainText">Paste domains (one per line)</label>
+      <textarea id="domainText" rows="5" placeholder="example.com&#10;example.com.hk"></textarea>
+    </div>
+    <div class="field">
+      <label for="domainFile">...or load a .txt/.csv file (one domain per line)</label>
+      <input type="file" id="domainFile" accept=".txt,.csv">
+      <span id="domainFileStatus" class="muted"></span>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Run</h2>
+  <div class="btn-row">
+    <button class="secondary" id="btnDryRun">Dry run (estimate credits)</button>
+    <button id="btnFetch">Start fetch</button>
+    <button class="secondary" id="btnStop" disabled>Stop</button>
+    <button class="secondary" id="btnExportCsv">Export analytics CSV</button>
+  </div>
+  <div id="dryRunOut" class="muted" style="margin-top:10px; white-space:pre-wrap; font-family: var(--mono);"></div>
+  <progress id="progressBar" value="0" max="1" style="display:none;"></progress>
+  <div class="stat-grid" style="margin-top:12px;">
+    <div class="stat ok"><div class="num" id="statFresh">0</div><div class="lbl">Fresh</div></div>
+    <div class="stat"><div class="num" id="statCached">0</div><div class="lbl">Cached</div></div>
+    <div class="stat"><div class="num" id="statNoData">0</div><div class="lbl">No data</div></div>
+    <div class="stat err"><div class="num" id="statErrors">0</div><div class="lbl">Errors</div></div>
+    <div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">Total domains</div></div>
+  </div>
+  <div id="log"></div>
+</div>
+
+<script>
+'use strict';
+
+// ── Constants (mirrors config.py / sw_api_fetch.py) ────────────────────────
+const SW_API_BASE = 'https://api.similarweb.com/v5/website-analysis/websites';
+const SW_API_CAPS = 'https://api.similarweb.com/capabilities';
+const BACKOFF_BASE = 60;
+const MAX_RETRIES = 4;
+const TRAFFIC_METRICS = 'visits';
+const HK_YES_THRESHOLD = 0.40;
+const HK_PARTIAL_THRESHOLD = 0.15;
+
+let stopRequested = false;
+
+// ── DOM helpers ──────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function logLine(msg, cls) {
+  const div = document.createElement('div');
+  if (cls) div.className = cls;
+  div.textContent = msg;
+  $('log').appendChild(div);
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+// ── IndexedDB ────────────────────────────────────────────────────────────
+const DB_NAME = 'sw_api_cache';
+const STORE = 'sw_cache';
+let dbPromise = null;
+
+function openDb() {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        db.createObjectStore(STORE, { keyPath: 'domain' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return dbPromise;
+}
+
+async function dbGet(domain) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).get(domain);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbPut(record) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(record);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbPutMany(records) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    for (const r of records) store.put(r);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbGetAll() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbClear() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbCount() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).count();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function refreshCacheCount() {
+  const n = await dbCount();
+  $('cacheCount').textContent = `Cache: ${n.toLocaleString()} records`;
+}
+
+// ── Date helpers (mirrors sw_api_fetch.py) ──────────────────────────────
+function ymToFirst(ym) { return ym + '-01'; }
+function ymToLast(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  const nextMonthFirst = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 1));
+  const lastDay = new Date(nextMonthFirst.getTime() - 86400000);
+  return `${ym}-${String(lastDay.getUTCDate()).padStart(2, '0')}`;
+}
+function monthsInRange(start, end) {
+  const [sy, sm] = start.split('-').map(Number);
+  const [ey, em] = end.split('-').map(Number);
+  return (ey - sy) * 12 + (em - sm) + 1;
+}
+
+// ── HTTP with retry/backoff (mirrors make_sw_request) ───────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function makeSwRequest(url, params, apiKey) {
+  const qs = new URLSearchParams(params).toString();
+  const fullUrl = `${url}?${qs}`;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (stopRequested) return [-2, null];
+    try {
+      const resp = await fetch(fullUrl, { headers: { 'api-key': apiKey } });
+      if (resp.status === 200) return [200, await resp.json()];
+      if (resp.status === 404) return [404, null];
+      if (resp.status === 429) {
+        const wait = BACKOFF_BASE * Math.pow(2, attempt);
+        logLine(`    429 rate-limited — sleeping ${wait}s`, 'log-warn');
+        await sleep(wait * 1000);
+        continue;
+      }
+      if (resp.status >= 500) {
+        const wait = 10 * (attempt + 1);
+        logLine(`    ${resp.status} server error — retry in ${wait}s`, 'log-warn');
+        await sleep(wait * 1000);
+        continue;
+      }
+      return [resp.status, null];
+    } catch (e) {
+      const wait = 10 * (attempt + 1);
+      logLine(`    connection error (${e.message}) — retry in ${wait}s`, 'log-warn');
+      await sleep(wait * 1000);
+    }
+  }
+  return [-1, null];
+}
+
+async function fetchTraffic(domain, start, end, apiKey, geoLimit) {
+  const url = `${SW_API_BASE}/traffic-and-engagement`;
+  return makeSwRequest(url, {
+    domain, start_date: ymToFirst(start), end_date: ymToLast(end),
+    granularity: 'Monthly', web_source: 'total', country: 'ww',
+    metrics: TRAFFIC_METRICS, format: 'json',
+  }, apiKey);
+}
+
+async function fetchGeography(domain, end, apiKey, geoLimit) {
+  const url = `${SW_API_BASE}/geography/aggregated`;
+  return makeSwRequest(url, {
+    domain, start_date: ymToFirst(end), end_date: ymToLast(end),
+    granularity: 'Monthly', web_source: 'total', metrics: 'share',
+    limit: geoLimit, format: 'json',
+  }, apiKey);
+}
+
+async function checkRemainingHits(apiKey) {
+  const [status, data] = await makeSwRequest(SW_API_CAPS, {}, apiKey);
+  if (status === 200 && data) return data.remaining_hits ?? null;
+  return null;
+}
+
+// ── Cache (mirrors load_cached / save_result) ───────────────────────────
+async function loadCached(domain, start, end) {
+  const data = await dbGet(domain);
+  if (!data) return null;
+  if (start && end && (data.start_date !== start || data.end_date !== end)) return null;
+  const t = data.traffic_status, g = data.geo_status;
+  if (![200, 404].includes(t) || ![200, 404].includes(g)) return null;
+  return data;
+}
+
+async function saveResult(domain, tStatus, tRaw, gStatus, gRaw, start, end) {
+  const record = {
+    domain,
+    fetched_at: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
+    start_date: start, end_date: end,
+    traffic_status: tStatus, geo_status: gStatus,
+    traffic_raw: tRaw, geo_raw: gRaw,
+  };
+  await dbPut(record);
+  return record;
+}
+
+// ── Analytics (mirrors derive_analytics) ────────────────────────────────
+function safeList(raw, ...keys) {
+  if (!raw) return [];
+  let val = raw;
+  for (const k of keys) {
+    if (typeof val !== 'object' || val === null) return [];
+    val = val[k];
+  }
+  return Array.isArray(val) ? val : [];
+}
+function safeFloat(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : null; }
+
+function deriveAnalytics(raw) {
+  const tRaw = raw.traffic_raw || {};
+  const gRaw = raw.geo_raw || {};
+  const tStatus = raw.traffic_status ?? -1;
+  const gStatus = raw.geo_status ?? -1;
+
+  const series = safeList(tRaw, 'data').length ? safeList(tRaw, 'data')
+    : safeList(tRaw, 'visits').length ? safeList(tRaw, 'visits')
+    : safeList(tRaw, 'results');
+
+  const visits = series.filter(s => s.visits != null).map(s => safeFloat(s.visits));
+  const dates = series.map(s => s.date || '');
+
+  const avg = (lst, n) => {
+    const tail = lst.slice(-n).filter(v => v != null);
+    return tail.length ? Math.round(tail.reduce((a, b) => a + b, 0) / tail.length) : null;
+  };
+
+  const swVisitsLatest = visits.length ? visits[visits.length - 1] : null;
+  const sw6mAvg = avg(visits, 6);
+  const sw12mAvg = avg(visits, 12);
+
+  let swMomTrend = null;
+  if (visits.length >= 6) {
+    const recent = visits.slice(-3).reduce((a, b) => a + b, 0) / 3;
+    const prior = visits.slice(-6, -3).reduce((a, b) => a + b, 0) / 3;
+    if (prior > 0) {
+      const pct = (recent - prior) / prior;
+      swMomTrend = pct > 0.05 ? 'UP' : pct < -0.05 ? 'DOWN' : 'FLAT';
+    }
+  }
+
+  let swPeakVisits = null, swPeakMonth = null;
+  if (visits.length) {
+    const peakI = visits.indexOf(Math.max(...visits));
+    swPeakVisits = visits[peakI];
+    swPeakMonth = dates[peakI] || null;
+  }
+
+  let geoCountries = safeList(gRaw, 'data').length ? safeList(gRaw, 'data')
+    : safeList(gRaw, 'countries').length ? safeList(gRaw, 'countries')
+    : safeList(gRaw, 'results');
+  if (geoCountries.length && geoCountries[0] && 'countries' in geoCountries[0]) {
+    geoCountries = geoCountries[geoCountries.length - 1].countries || [];
+  }
+
+  const countryCode = c => (c.country_code || c.country || '').toUpperCase();
+  const hk = geoCountries.find(c => countryCode(c) === 'HK') || null;
+  const swHkShare = hk ? safeFloat(hk.share) : null;
+  const swHkRank = hk ? (hk.rank ?? null) : null;
+  const top = geoCountries[0] || {};
+  const swTopCountry = top.country_name || top.country_code || top.country || null;
+  const swTopCountryShare = safeFloat(top.share);
+  const swCountriesCount = geoCountries.filter(c => (safeFloat(c.share) || 0) >= 0.01).length;
+
+  let swHkSignalApi = null;
+  if (swHkShare != null && swHkShare >= HK_YES_THRESHOLD) swHkSignalApi = 'YES';
+  else if (swHkShare != null && swHkShare >= HK_PARTIAL_THRESHOLD) swHkSignalApi = 'PARTIAL';
+  else if (gStatus === 200) swHkSignalApi = 'NO';
+
+  let apiStatus;
+  if (tStatus === 200 && gStatus === 200) apiStatus = 'OK';
+  else if (tStatus === 200) apiStatus = 'TRAFFIC_ONLY';
+  else if (gStatus === 200) apiStatus = 'GEO_ONLY';
+  else if (tStatus === 404 && gStatus === 404) apiStatus = 'NO_DATA';
+  else apiStatus = 'ERROR';
+
+  return {
+    domain: raw.domain,
+    SW_API_Status: apiStatus,
+    SW_Visits_Latest: swVisitsLatest,
+    SW_6m_Avg_Visits: sw6mAvg,
+    SW_12m_Avg_Visits: sw12mAvg,
+    SW_MoM_Trend: swMomTrend,
+    SW_Peak_Month: swPeakMonth,
+    SW_Peak_Visits: swPeakVisits,
+    SW_HK_Rank: swHkRank,
+    SW_HK_Share: swHkShare != null ? Math.round(swHkShare * 1000) / 10 : null,
+    SW_Top_Country: swTopCountry,
+    SW_Top_Country_Share: swTopCountryShare != null ? Math.round(swTopCountryShare * 1000) / 10 : null,
+    SW_Countries_Count: swCountriesCount || null,
+    SW_HK_Signal_API: swHkSignalApi,
+    SW_API_Fetched_At: raw.fetched_at || '',
+  };
+}
+
+// ── Credit estimate (mirrors estimate_credits / run_dry_run) ────────────
+async function dryRun(domains, start, end, geoLimit) {
+  const n = domains.length;
+  let cached = 0;
+  for (const d of domains) {
+    if (await loadCached(d, start, end)) cached++;
+  }
+  const months = monthsInRange(start, end);
+  const trafficCredits = n * months * 1;
+  const geoCreditsConfirmed = n * geoLimit * 2;
+  const apiKey = $('apiKey').value.trim();
+  let hits = null;
+  if (apiKey) hits = await checkRemainingHits(apiKey);
+
+  const lines = [
+    `Domains        : ${n}  (cached: ${cached}, to fetch: ${n - cached})`,
+    `Date window    : ${start} -> ${end}  (${months} months)`,
+    `Credits (traffic): ${n} x ${months} x 1 = ${trafficCredits.toLocaleString()}`,
+    `Credits (geo)     : ${n} x ${geoLimit} x 2 = ${geoCreditsConfirmed.toLocaleString()}  (empirical, 2/country)`,
+    `TOTAL             : ${(trafficCredits + geoCreditsConfirmed).toLocaleString()}`,
+    `API calls         : ${n * 2}`,
+    `Est. runtime      : ${(n * parseFloat($('delay').value) * 2 / 60).toFixed(1)} min`,
+  ];
+  if (hits != null) lines.push(`Current remaining hits: ${hits.toLocaleString()}`);
+  $('dryRunOut').textContent = lines.join('\n');
+}
+
+// ── Main fetch loop (mirrors run_fetch) ──────────────────────────────────
+async function runFetch(domains) {
+  const apiKey = $('apiKey').value.trim();
+  if (!apiKey) { alert('API key required.'); return; }
+
+  const start = $('startDate').value.trim();
+  const end = $('endDate').value.trim();
+  const geoLimit = parseInt($('geoLimit').value, 10);
+  const delay = parseFloat($('delay').value) * 1000;
+  const creditCheckEvery = parseInt($('creditCheckEvery').value, 10);
+  const creditsPerDomain = parseInt($('creditsPerDomain').value, 10);
+
+  stopRequested = false;
+  $('btnFetch').disabled = true;
+  $('btnStop').disabled = false;
+  $('progressBar').style.display = 'block';
+  $('progressBar').max = domains.length;
+  $('log').textContent = '';
+
+  let fresh = 0, cachedN = 0, noData = 0, errors = 0;
+  $('statTotal').textContent = domains.length;
+
+  const hitsBefore = await checkRemainingHits(apiKey);
+  if (hitsBefore != null) logLine(`Credits before fetch: ${hitsBefore.toLocaleString()}`);
+
+  for (let i = 0; i < domains.length; i++) {
+    if (stopRequested) { logLine('Stopped by user.', 'log-warn'); break; }
+    const domain = domains[i];
+    $('progressBar').value = i + 1;
+
+    const cachedRecord = await loadCached(domain, start, end);
+    if (cachedRecord) {
+      cachedN++; $('statCached').textContent = cachedN;
+      logLine(`[${i + 1}/${domains.length}] ${domain}  CACHED`);
+      continue;
+    }
+
+    if ((i + 1) % creditCheckEvery === 0) {
+      const remaining = await checkRemainingHits(apiKey);
+      if (remaining != null && remaining < creditsPerDomain) {
+        logLine(`Stopping: ${remaining} credits left (< ${creditsPerDomain}/domain). ${domains.length - i} domains not fetched.`, 'log-err');
+        break;
+      }
+    }
+
+    const [tStatus, tRaw] = await fetchTraffic(domain, start, end, apiKey, geoLimit);
+    await sleep(delay);
+    const [gStatus, gRaw] = await fetchGeography(domain, end, apiKey, geoLimit);
+    await saveResult(domain, tStatus, tRaw, gStatus, gRaw, start, end);
+
+    let label, cls;
+    if (tStatus === 404 && gStatus === 404) { noData++; label = 'NO DATA'; cls = ''; }
+    else if (tStatus === 200) { fresh++; label = `OK (t=${tStatus} g=${gStatus})`; cls = 'log-ok'; }
+    else { errors++; label = `ERROR t=${tStatus} g=${gStatus}`; cls = 'log-err'; }
+
+    $('statFresh').textContent = fresh;
+    $('statNoData').textContent = noData;
+    $('statErrors').textContent = errors;
+    logLine(`[${i + 1}/${domains.length}] ${domain}  ${label}`, cls);
+
+    await sleep(delay);
+  }
+
+  const hitsAfter = await checkRemainingHits(apiKey);
+  if (hitsBefore != null && hitsAfter != null) {
+    logLine(`Credits after fetch: ${hitsAfter.toLocaleString()} (consumed: ${(hitsBefore - hitsAfter).toLocaleString()})`);
+  }
+  logLine(`Done: ${fresh} fresh | ${cachedN} cached | ${noData} no-data | ${errors} errors`, 'log-ok');
+
+  saveRunLog();
+
+  $('btnFetch').disabled = false;
+  $('btnStop').disabled = true;
+  await refreshCacheCount();
+}
+
+// ── Domain list parsing ───────────────────────────────────────────────────
+// SimilarWeb's API does exact-string domain matching with no normalization of
+// its own — "https://www.example.com/" and "example.com" are different
+// strings to it, and anything but the bare domain returns 404 on both
+// endpoints (looks like "no data" but is really a malformed query).
+function normalizeDomain(s) {
+  return s.trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/[/?#].*$/, '')
+    .toLowerCase();
+}
+
+function parseDomainText(text) {
+  const seen = new Set();
+  const out = [];
+  for (const line of text.split(/\r?\n/)) {
+    const d = normalizeDomain(line);
+    if (d && !seen.has(d)) { seen.add(d); out.push(d); }
+  }
+  return out;
+}
+
+async function getDomainList() {
+  const pasted = parseDomainText($('domainText').value);
+  if (pasted.length) return pasted;
+  if (window._uploadedDomains) return window._uploadedDomains;
+  return [];
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────
+function toCsv(rows) {
+  if (!rows.length) return '';
+  const cols = Object.keys(rows[0]);
+  const esc = v => {
+    if (v == null) return '';
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [cols.join(',')];
+  for (const r of rows) lines.push(cols.map(c => esc(r[c])).join(','));
+  return lines.join('\n');
+}
+
+function downloadBlob(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function timestampForFilename() {
+  return new Date().toISOString().replace(/[:.]/g, '-');
+}
+
+function saveRunLog() {
+  const text = Array.from($('log').children).map(el => el.textContent).join('\n');
+  if (!text) return;
+  downloadBlob(text, `sw_fetch_log_${timestampForFilename()}.txt`, 'text/plain');
+}
+
+// ── Wire up UI ────────────────────────────────────────────────────────────
+$('domainFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  window._uploadedDomains = parseDomainText(text);
+  $('domainFileStatus').textContent = `${window._uploadedDomains.length} domains loaded from ${file.name}`;
+});
+
+$('snapshotLoad').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  $('snapshotLoadStatus').textContent = 'Loading…';
+  try {
+    const text = await file.text();
+    const bundle = JSON.parse(text);
+    const records = [];
+    let skipped = 0;
+    for (const [domain, record] of Object.entries(bundle)) {
+      if (record && typeof record === 'object' && record.domain) records.push(record);
+      else skipped++;
+    }
+    await dbPutMany(records);
+    await refreshCacheCount();
+    $('snapshotLoadStatus').textContent = `Loaded ${records.length} records (skipped ${skipped})`;
+
+    // Surface date-window match count against current config
+    const start = $('startDate').value.trim(), end = $('endDate').value.trim();
+    const matching = records.filter(r => r.start_date === start && r.end_date === end).length;
+    logLine(`Snapshot loaded: ${records.length} records. ${matching} of ${records.length} match current date window (${start} -> ${end}); the rest will be treated as stale and re-fetched.`, matching === records.length ? 'log-ok' : 'log-warn');
+  } catch (err) {
+    $('snapshotLoadStatus').textContent = `Error: ${err.message}`;
+  }
+});
+
+$('btnSaveSnapshot').addEventListener('click', async () => {
+  const all = await dbGetAll();
+  const bundle = {};
+  for (const r of all) bundle[r.domain] = r;
+  downloadBlob(JSON.stringify(bundle), 'sw_cache_bundle.json', 'application/json');
+});
+
+$('btnClearCache').addEventListener('click', async () => {
+  if (!confirm('Clear the entire IndexedDB cache? This cannot be undone (use Save snapshot first if unsure).')) return;
+  await dbClear();
+  await refreshCacheCount();
+});
+
+$('btnCheckCredits').addEventListener('click', async () => {
+  const apiKey = $('apiKey').value.trim();
+  if (!apiKey) { $('creditStatus').textContent = 'Enter an API key first.'; return; }
+  $('creditStatus').textContent = 'Checking…';
+  const hits = await checkRemainingHits(apiKey);
+  $('creditStatus').textContent = hits != null ? `Remaining hits: ${hits.toLocaleString()}` : 'Could not retrieve balance.';
+});
+
+$('btnDryRun').addEventListener('click', async () => {
+  const domains = await getDomainList();
+  if (!domains.length) { alert('No domains loaded.'); return; }
+  const start = $('startDate').value.trim(), end = $('endDate').value.trim();
+  const geoLimit = parseInt($('geoLimit').value, 10);
+  $('dryRunOut').textContent = 'Computing…';
+  await dryRun(domains, start, end, geoLimit);
+});
+
+$('btnFetch').addEventListener('click', async () => {
+  const domains = await getDomainList();
+  if (!domains.length) { alert('No domains loaded.'); return; }
+  await runFetch(domains);
+});
+
+$('btnStop').addEventListener('click', () => { stopRequested = true; });
+
+$('btnExportCsv').addEventListener('click', async () => {
+  const all = await dbGetAll();
+  if (!all.length) { alert('Cache is empty.'); return; }
+  const rows = all.map(deriveAnalytics);
+  downloadBlob(toCsv(rows), 'sw_analytics.csv', 'text/csv');
+});
+
+refreshCacheCount();
+</script>
+</body>
+</html>
